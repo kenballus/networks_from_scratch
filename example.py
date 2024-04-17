@@ -44,7 +44,7 @@ def main() -> None:
         ip_packet.serialize(),
     )
 
-    # Send the IP packet to localhost (i.e., also on the loopback interface).
+    # Send the IP packet to localhost (i.e., on the loopback interface).
     eth_sock = sockets.make_ethernet_socket()
     serialized_ip_packet = ip_packet.serialize()
     assert eth_sock.sendto(serialized_ip_packet, ("localhost", 0)) == len(serialized_ip_packet)
