@@ -2,6 +2,8 @@ from dataclasses import dataclass
 from enum import Enum
 from ipaddress import IPv4Address
 
+from typing import Final
+
 
 class IPProtocol(Enum):
     ICMP = 1
@@ -16,14 +18,131 @@ class IPFlags:
     df: bool
     mf: bool
 
-    def __str__(self) -> str:
-        return repr(self)
-
-    def __repr__(self) -> str:
-        return f"reserved: {int(self.reserved)}, df: {int(self.df)}, mf: {int(self.mf)}"
-
     def serialize(self) -> int:
-        return (int(self.reserved) << 2) | (int(self.df) << 1) | int(self.mf)
+        return (self.reserved << 2) | (self.df << 1) | self.mf
+
+
+NULL_IPFLAGS: Final[IPFlags] = IPFlags(False, False, False)
+
+
+class IPToSPrecedence(Enum):
+    """
+    111 - Network Control
+    110 - Internetwork Control
+    101 - CRITIC/ECP
+    100 - Flash Override
+    011 - Flash
+    010 - Immediate
+    001 - Priority
+    000 - Routine
+    """
+
+    NETWORK_CONTROL = 7
+    INTERNETWORK_CONTROL = 6
+    CRITIC_ECP = 5
+    FLASH_OVERRIDE = 4
+    FLASH = 3
+    IMMEDIATE = 2
+    PRIORITY = 1
+    ROUTINE = 0
+
+
+@dataclass
+class IPToS:
+    """
+       0     1     2     3     4     5     6     7
+    +-----+-----+-----+-----+-----+-----+-----+-----+
+    |                 |     |     |     |     |     |
+    |   PRECEDENCE    |  D  |  T  |  R  |  0  |  0  |
+    |                 |     |     |     |     |     |
+    +-----+-----+-----+-----+-----+-----+-----+-----+
+    """
+
+    precedence: IPToSPrecedence
+    delay: bool
+    throughput: bool
+    reliability: bool
+    reserved: int
+
+    def __post_init__(self) -> None:
+        assert 0 <= self.reserved < 2**2
+
+    def serialize(self) -> bytes:
+        return bytes(
+            [
+                (self.precedence.value << 5)
+                | (self.delay << 4)
+                | (self.throughput << 3)
+                | (self.reliability << 2)
+                | self.reserved
+            ]
+        )
+
+
+NULL_IPTOS: Final[IPToS] = IPToS(IPToSPrecedence.ROUTINE, False, False, False, 0)
+
+
+class IPOptionClass(Enum):
+    """
+    0 = control
+    1 = reserved for future use
+    2 = debugging and measurement
+    3 = reserved for future use
+    """
+
+    CONTROL = 0
+    RESERVED_1 = 1
+    DEBUGGING_AND_MEASUREMENT = 2
+    RESERVED_2 = 3
+
+
+@dataclass
+class IPOptionType:
+    """
+    1 bit   copied flag,
+    2 bits  option class,
+    5 bits  option number.
+    """
+
+    copied_flag: bool
+    option_class: IPOptionClass
+    option_number: int
+
+    def __post_init__(self) -> None:
+        assert 0 <= self.option_number < 2**5
+
+    def serialize(self) -> bytes:
+        return bytes((self.copied_flag << 7) | (self.option_class.value << 6) | self.option_number)
+
+
+@dataclass
+class IPOption:
+    option_type: IPOptionType
+    option_length: int | None
+    option_data: bytes
+
+    def __post_init__(self) -> None:
+        if self.option_length is None:
+            assert self.option_data == b""
+        else:
+            # The option-length counts the two octets of option-kind and option-length as well as the option-data octets.
+            assert (
+                0 <= self.option_length < 2**8 and len(self.option_data) + 2 == self.option_length
+            )
+
+    def serialize(self) -> bytes:
+        result: bytes = self.option_type.serialize()
+        if self.option_length is not None:
+            result += bytes([self.option_length])
+        result += self.option_data
+        return result
+
+
+END_OF_OPTION_LIST: Final[IPOption] = IPOption(
+    IPOptionType(False, IPOptionClass.CONTROL, 0),
+    None,
+    b"",
+)
 
 
 @dataclass
@@ -47,7 +166,7 @@ class IPv4Packet:
 
     version: int
     ihl: int
-    type_of_service: int
+    type_of_service: IPToS
     total_length: int
     identification: int
     flags: IPFlags
@@ -57,36 +176,36 @@ class IPv4Packet:
     header_checksum: int
     source_address: IPv4Address
     destination_address: IPv4Address
-    options: int | None = None
-    padding: int | None = None
+    options: list[IPOption]
     payload: bytes = b""
+
+    def ihl_is_in_range(self) -> bool:
+        return 0 <= self.ihl < 2**4
+
+    def total_length_is_in_range(self) -> bool:
+        return 0 <= self.total_length < 2**16
 
     def __post_init__(self) -> None:
         assert all(
             (
                 0 <= self.version < 2**4,
-                0 <= self.ihl < 2**4,
-                0 <= self.type_of_service < 2**8,
-                0 <= self.total_length < 2**16,
+                self.ihl_is_in_range(),
+                self.total_length_is_in_range(),
                 0 <= self.identification < 2**16,
                 0 <= self.fragment_offset < 2**13,
                 0 <= self.time_to_live < 2**8,
                 0 <= self.protocol < 2**8,
                 0 <= self.header_checksum < 2**16,
-                (self.options is None) == (self.padding is None),
             )
         )
-
-        if self.options is not None and self.padding is not None:
-            assert 0 <= self.options < 2**24 and 0 <= self.padding < 2**8
 
     def serialize(self) -> bytes:
         result: bytes = b"".join(
             [
+                bytes([(self.version << 4) | self.ihl]),
+                self.type_of_service.serialize(),
                 bytes(
                     [
-                        (self.version << 4) | self.ihl,
-                        self.type_of_service,
                         self.total_length >> 8,
                         self.total_length & 0xFF,
                     ]
@@ -109,25 +228,38 @@ class IPv4Packet:
                 ),
                 self.source_address.packed,
                 self.destination_address.packed,
+                *map(IPOption.serialize, self.options),
+                self.payload,
             ]
         )
-        if self.options is not None and self.padding is not None:
-            result += bytes(
-                [
-                    self.options >> 16,
-                    (self.options >> 8) & 0xFF,
-                    self.options & 0xFF,
-                    self.padding,
-                ]
-            )
-        result += self.payload
         return result
 
-    def correct_checksum(self) -> None:
+    def fix_checksum(self) -> None:
         self.header_checksum = 0
-        header_bytes: bytes = self.serialize()[:self.ihl * 4]
-        for i in map(lambda i: (header_bytes[i] << 8) | header_bytes[i + 1], range(0, len(header_bytes), 2)):
+        header_bytes: bytes = self.serialize()[: self.ihl * 4]
+        for i in map(
+            lambda i: (header_bytes[i] << 8) | header_bytes[i + 1],
+            range(0, len(header_bytes), 2),
+        ):
             self.header_checksum += i
             if self.header_checksum > 0xFFFF:
                 self.header_checksum -= 0xFFFF
         self.header_checksum = 0x10000 + ~self.header_checksum
+
+    def fix_total_length(self) -> None:
+        self.total_length = self.ihl * 4 + len(self.payload)
+        assert self.total_length_is_in_range()
+
+    def fix_ihl(self) -> None:
+        self.ihl = 5 + (len(b"".join(map(IPOption.serialize, self.options))) // 4)
+        assert self.ihl_is_in_range()
+
+    def fix_padding(self) -> None:
+        for _ in range((0 - len(b"".join(map(IPOption.serialize, self.options)))) % 4):
+            self.options.append(END_OF_OPTION_LIST)
+
+    def fix(self) -> None:
+        self.fix_padding()
+        self.fix_ihl()
+        self.fix_total_length()
+        self.fix_checksum()

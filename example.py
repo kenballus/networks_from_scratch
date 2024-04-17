@@ -1,48 +1,59 @@
 import sockets
 
-from ip import IPv4Packet, IPFlags, IPv4Address, IPProtocol
+from icmp import ICMPEchoMessage, ICMPMessageTypes
+from ip import IPv4Packet, IPFlags, IPv4Address, IPProtocol, NULL_IPTOS
 from ethernet import MACAddress, EtherType, EthernetFrame
 
-# We're going to make an IP packet and encapsulating ethernet frame from scratch.
 
-# This is the payload of the IP packet. We're starting with an empty payload.
-payload: bytes = b""
+def main() -> None:
+    # We're going to make an ICMP echo (ping) packet from scratch.
+    icmp_packet: ICMPEchoMessage = ICMPEchoMessage(
+        ICMPMessageTypes.ECHO.value,
+        0,  # Code
+        0,  # Checksum
+        0,  # Identifier
+        0,  # Sequence number
+        bytes(range(0x38)),
+    )
+    icmp_packet.fix()  # Fix the checksum
 
-# This is the number of 32-bit words in the IP header.
-# It would be 6 if we were using IP options.
-ip_header_words: int = 5
+    # This is the IP packet.
+    ip_packet: IPv4Packet = IPv4Packet(
+        4,  # Version
+        0,  # IHL
+        NULL_IPTOS,  # ToS
+        0,  # Total length
+        0,  # ID
+        IPFlags(False, True, False),
+        0,  # Fragment
+        64,  # TTL
+        IPProtocol.ICMP.value,  # Protocol
+        0,  # Checksum
+        IPv4Address("127.0.0.1"),  # Source IP
+        IPv4Address("127.0.0.2"),  # Destination IP
+        [],  # Options
+        icmp_packet.serialize(),  # Payload
+    )
+    ip_packet.fix()  # Fix the padding, IHL, total length, and checksum
 
-# This is the IP packet.
-packet: IPv4Packet = IPv4Packet(
-    4,  # Version
-    ip_header_words,  # IHL
-    0,  # ToS
-    ip_header_words * 4 + len(payload),  # Total length
-    0,  # ID
-    IPFlags(False, False, False),
-    0,  # Fragment
-    64,  # TTL
-    IPProtocol.ICMP.value,  # Protocol
-    0,  # Checksum
-    IPv4Address("127.0.0.1"),  # Source IP
-    IPv4Address("127.0.0.1"),  # Destination IP
-)
+    # This is the ethernet frame. Note that its payload is the IP packet.
+    ethernet_frame: EthernetFrame = EthernetFrame(
+        MACAddress("00:00:00:00:00:00"),  # Destination MAC
+        MACAddress("00:00:00:00:00:00"),  # Source MAC
+        EtherType.IP.value,
+        ip_packet.serialize(),
+    )
 
-# This is the ethernet frame. Note that its payload is the IP packet.
-frame: EthernetFrame = EthernetFrame(
-    MACAddress("00:00:00:00:00:00"),  # Destination MAC
-    MACAddress("00:00:00:00:00:00"),  # Source MAC
-    EtherType.IP.value,
-    packet.serialize(),
-)
+    # Send the IP packet to localhost (i.e., also on the loopback interface).
+    eth_sock = sockets.make_ethernet_socket()
+    serialized_ip_packet = ip_packet.serialize()
+    assert eth_sock.sendto(serialized_ip_packet, ("localhost", 0)) == len(serialized_ip_packet)
 
-# We're sending the ethernet frame on the loopback interface.
-raw_sock = sockets.make_raw_socket()
-raw_sock.sendto(frame.serialize(), ("lo", 0))
+    # Send the ethernet frame on the loopback interface.
+    raw_sock = sockets.make_raw_socket()
+    serialized_ethernet_frame = ethernet_frame.serialize()
+    assert raw_sock.sendto(serialized_ethernet_frame, ("lo", 0)) == len(serialized_ethernet_frame)
 
-# We're sending the IP packet to localhost (i.e., also on the loopback interface).
-eth_sock = sockets.make_ethernet_socket()
-eth_sock.sendto(packet.serialize(), ("localhost", 0))
 
-# If you're watching the loopback interface with tcpdump (e.g. with `tcpdump -nXXvvv -i lo`),
-# then you should see roughly the same IP packet transmitted, except for the ID and checksum.
+if __name__ == "__main__":
+    main()

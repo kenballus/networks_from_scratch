@@ -1,21 +1,19 @@
-import copy
-
 from dataclasses import dataclass
 from enum import Enum
 
 
 class ICMPMessageTypes(Enum):
-    EchoReply = 0  # RFC 792
-    DestinationUnreachable = 3  # RFC 792
-    SourceQuench = 4  # RFC 792
-    Redirect = 5  # RFC 792
-    Echo = 8  # RFC 792
-    TimeExceeded = 11  # RFC 792
-    ParameterProblem = 12  # RFC 792
-    Timestamp = 13  # RFC 792
-    TimestampReply = 14  # RFC 792
-    InformationRequest = 15  # RFC 792
-    InformationReply = 16  # RFC 792
+    ECHO_REPLY = 0  # RFC 792
+    DESTINATION_UNREACHABLE = 3  # RFC 792
+    SOURCE_QUENCH = 4  # RFC 792
+    REDIRECT = 5  # RFC 792
+    ECHO = 8  # RFC 792
+    TIME_EXCEEDED = 11  # RFC 792
+    PARAMETER_PROBLEM = 12  # RFC 792
+    TIMESTAMP = 13  # RFC 792
+    TIMESTAMP_REPLY = 14  # RFC 792
+    INFORMATION_REQUEST = 15  # RFC 792
+    INFORMATION_REPLY = 16  # RFC 792
     AM1 = 17  # RFC 950
     AM2 = 18  # RFC 950
 
@@ -59,7 +57,7 @@ class ICMPEchoMessage:
             )
         )
 
-    def correct_checksum(self) -> None:
+    def fix(self) -> None:
         self.checksum = 0
         s: bytes = self.serialize()
         if len(s) % 2 == 1:
