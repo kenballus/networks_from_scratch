@@ -3,7 +3,7 @@ import socket
 
 def make_raw_socket() -> socket.socket:
     """Nothing abstracted away"""
-    result: socket.socket = socket.socket(socket.PF_PACKET, socket.SOCK_RAW)
+    result: socket.socket = socket.socket(socket.AF_PACKET, socket.SOCK_RAW)
     return result
 
 

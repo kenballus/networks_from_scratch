@@ -122,3 +122,12 @@ class IPv4Packet:
             )
         result += self.payload
         return result
+
+    def correct_checksum(self) -> None:
+        self.header_checksum = 0
+        header_bytes: bytes = self.serialize()[:self.ihl * 4]
+        for i in map(lambda i: (header_bytes[i] << 8) | header_bytes[i + 1], range(0, len(header_bytes), 2)):
+            self.header_checksum += i
+            if self.header_checksum > 0xFFFF:
+                self.header_checksum -= 0xFFFF
+        self.header_checksum = 0x10000 + ~self.header_checksum
