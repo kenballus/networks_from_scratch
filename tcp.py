@@ -39,9 +39,18 @@ TCP_FLAGS_SYN: TCPFlags = TCPFlags(False, False, False, False, False, False, Tru
 
 
 class TCPOptionKind(Enum):
+    # Required
     END_OF_OPTION_LIST = 0
     NO_OPERATION = 1
     MAXIMUM_SEGMENT_SIZE = 2
+    # Recommended
+    WINDOW_SCALE = 3
+    SACK_PERMITTED = 4
+    SACK_OPTION = 5
+    TIMESTAMPS = 8
+    # Experimental
+    RFC3692_EXPERIMENT_1 = 253 # Reserved in RFC 4727
+    RFC3692_EXPERIMENT_2 = 254 # Reserved in RFC 4727
 
 
 @dataclass
@@ -68,6 +77,54 @@ class TCPOption:
                 (b"" if self.option_data is None else self.option_data),
             )
         )
+
+class ConstructTCPOption:
+    # RFC 9293 - Required - Kind: 0
+    @staticmethod
+    def end_of_option_list() -> TCPOption:
+        return TCPOption(TCPOptionKind.END_OF_OPTION_LIST.value(), None, b"")
+
+    # RFC 9293 - Required - Kind: 1
+    @staticmethod
+    def no_operation() -> TCPOption:
+        return TCPOption(TCPOptionKind.NO_OPERATION.value(), None, b"")
+
+    # RFC 9293 - Required - Kind: 2
+    @staticmethod
+    def max_segment_size(max_seg_size: bytes) -> TCPOption:
+        assert len(max_seg_size) == 2
+        return TCPOption(TCPOptionKind.MAXIMUM_SEGMENT_SIZE.value(), 4, max_seg_size)
+
+    # RFC 7323 - Recommended - Kind: 3
+    @staticmethod
+    def window_scale(shift_cnt: bytes) -> TCPOption:
+        assert len(shift_cnt) == 1
+        return TCPOption(TCPOptionKind.WINDOW_SCALE.value(), 3, shift_cnt)
+
+    # RFC 2018 - Recommended - Kind: 4
+    @staticmethod
+    def sack_permitted() -> TCPOption:
+        return TCPOption(TCPOptionKind.SACK_PERMITTED.value(), 2, b"")
+
+    # RFC 2018 - Recommended - Kind: 5
+    @staticmethod
+    def sack_option(block_edges: bytes) -> TCPOption:
+        assert (len(block_edges) % 8 == 0) and (len(block_edges) <= 4)
+        # Maybe also assert that each left edge is less than or equal to each right edge?
+        return TCPOption(TCPOptionKind.SACK_OPTION.value(), len(block_edges) + 2, block_edges)
+
+    # RFC 7323 - Recommended - Kind: 8
+    @staticmethod
+    def timestamps(ts_value: bytes, ts_echo_reply: bytes) -> TCPOption:
+        assert (len(ts_value) == 4) and (len(ts_echo_reply) == 4)
+        return TCPOption(TCPOptionKind.TIMESTAMPS.value(), 10, b"".join(ts_value, ts_echo_reply))
+
+    # RFC 6994 - Experimental - Kind: 253, 254
+    @staticmethod
+    def experimental(experiment: bool, experimental_identifier: bytes, options:bytes) -> TCPOption:
+        assert len(experimental_identifier) in [2, 4]
+        option_kind = (TCPOptionKind.RFC3692_EXPERIMENT_2 if experiment else TCPOptionKind.RFC3692_EXPERIMENT_1).value()
+        return TCPOption(option_kind, len(experimental_identifier) + len(options) + 2, b"".join(experimental_identifier, options))
 
 
 @dataclass

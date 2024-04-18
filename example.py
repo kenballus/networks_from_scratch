@@ -3,6 +3,29 @@ import sockets
 from icmp import ICMPEchoMessage, ICMPMessageTypes
 from ip import IPv4Packet, IPFlags, IPv4Address, IPProtocol, NULL_IPTOS
 from ethernet import MACAddress, EtherType, EthernetFrame
+from tcp import TCPPacket,ConstructTCPOption
+
+
+example_tcp_syn: TCPPacket = TCPPacket(
+    0x0000,  # Source port                <- add
+    0x0050,  # Destination port
+    0x00000000,  # Sequence number        <- add
+    0x00000000,  # Acknowledgment number
+    0xA,  # Data offset
+    0,  # Reserved
+    TCP_FLAGS_SYN,
+    0x0000, # window                     <- add
+    0x0000, # checksum                   <- add
+    0x0000, # urgent_pointer
+    [
+        ConstructTCPOption.max_segment_size(b"\x05\xb4"),
+        ConstructTCPOption.sack_permitted(),
+        ConstructTCPOption.timestamps(b"\xd7\xcc\xea\x4b", b"\x00\x00\x00\x00"),
+        ConstructTCPOption.no_operation(),
+        ConstructTCPOption.window_scale(b"\x07"),
+    ],
+    b"",
+)
 
 
 def main() -> None:
