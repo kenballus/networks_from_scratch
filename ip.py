@@ -1,8 +1,9 @@
 from dataclasses import dataclass
 from enum import Enum
 from ipaddress import IPv4Address
-
 from typing import Final
+
+from util import bitfield, int_to_bytes
 
 
 class IPProtocol(Enum):
@@ -19,7 +20,7 @@ class IPFlags:
     mf: bool
 
     def serialize(self) -> int:
-        return (self.reserved << 2) | (self.df << 1) | self.mf
+        return bitfield(self.reserved, self.df, self.mf)
 
 
 NULL_IPFLAGS: Final[IPFlags] = IPFlags(False, False, False)
@@ -62,24 +63,21 @@ class IPToS:
     delay: bool
     throughput: bool
     reliability: bool
-    reserved: int
-
-    def __post_init__(self) -> None:
-        assert 0 <= self.reserved < 2**2
+    reserved_6: bool = False
+    reserved_7: bool = False
 
     def serialize(self) -> bytes:
         return bytes(
             [
                 (self.precedence.value << 5)
-                | (self.delay << 4)
-                | (self.throughput << 3)
-                | (self.reliability << 2)
-                | self.reserved
+                | bitfield(
+                    self.delay, self.throughput, self.reliability, self.reserved_6, self.reserved_7
+                )
             ]
         )
 
 
-NULL_IPTOS: Final[IPToS] = IPToS(IPToSPrecedence.ROUTINE, False, False, False, 0)
+NULL_IPTOS: Final[IPToS] = IPToS(IPToSPrecedence.ROUTINE, False, False, False)
 
 
 class IPOptionClass(Enum):
@@ -93,7 +91,7 @@ class IPOptionClass(Enum):
     CONTROL = 0
     RESERVED_1 = 1
     DEBUGGING_AND_MEASUREMENT = 2
-    RESERVED_2 = 3
+    RESERVED_3 = 3
 
 
 @dataclass
@@ -123,11 +121,11 @@ class IPOption:
 
     def __post_init__(self) -> None:
         if self.option_length is None:
-            assert self.option_data == b""
+            assert len(self.option_data) == 0
         else:
             # The option-length counts the two octets of option-kind and option-length as well as the option-data octets.
             assert (
-                0 <= self.option_length < 2**8 and len(self.option_data) + 2 == self.option_length
+                0 <= self.option_length < 2**8 and len(self.option_data) == self.option_length - 2
             )
 
     def serialize(self) -> bytes:
@@ -204,16 +202,10 @@ class IPv4Packet:
             [
                 bytes([(self.version << 4) | self.ihl]),
                 self.type_of_service.serialize(),
+                int_to_bytes(self.total_length, 2),
+                int_to_bytes(self.identification, 2),
                 bytes(
                     [
-                        self.total_length >> 8,
-                        self.total_length & 0xFF,
-                    ]
-                ),
-                bytes(
-                    [
-                        self.identification >> 8,
-                        self.identification & 0xFF,
                         (self.flags.serialize() << 5) | (self.fragment_offset >> 9),
                         self.fragment_offset & 0xFF,
                     ]
@@ -222,10 +214,9 @@ class IPv4Packet:
                     [
                         self.time_to_live,
                         self.protocol,
-                        self.header_checksum >> 8,
-                        self.header_checksum & 0xFF,
                     ]
                 ),
+                int_to_bytes(self.header_checksum, 2),
                 self.source_address.packed,
                 self.destination_address.packed,
                 *map(IPOption.serialize, self.options),

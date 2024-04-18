@@ -3,6 +3,8 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 
+from util import int_to_bytes
+
 
 class MACAddress:
     def __init__(self, s: str):
@@ -23,7 +25,7 @@ class MACAddress:
 
 
 class EtherType(Enum):
-    IP = 0x800
+    IP = 0x0800
     ARP = 0x0806
 
 
@@ -42,7 +44,7 @@ class EthernetFrame:
             (
                 self.destination_address.serialize(),
                 self.source_address.serialize(),
-                bytes([self.ethertype >> 8, self.ethertype & 0xFF]),
+                int_to_bytes(self.ethertype, 2),
                 self.data,
             )
         )

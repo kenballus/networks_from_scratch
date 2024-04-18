@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from enum import Enum
 
+from util import int_to_bytes
+
 
 class ICMPMessageTypes(Enum):
     ECHO_REPLY = 0  # RFC 792
@@ -45,14 +47,11 @@ class ICMPEchoMessage:
                     [
                         self.type,
                         self.code,
-                        self.checksum >> 8,
-                        self.checksum & 0xFF,
-                        self.identifier >> 8,
-                        self.identifier & 0xFF,
-                        self.sequence_number >> 8,
-                        self.sequence_number & 0xFF,
                     ]
                 ),
+                int_to_bytes(self.checksum, 2),
+                int_to_bytes(self.identifier, 2),
+                int_to_bytes(self.sequence_number, 2),
                 self.data,
             )
         )
