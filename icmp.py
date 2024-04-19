@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 
-from util import int_to_bytes
+from util import int_to_bytes, checksum
 
 
 class ICMPMessageTypes(Enum):
@@ -23,7 +23,7 @@ class ICMPMessageTypes(Enum):
 @dataclass
 class ICMPEchoMessage:
     """
-     0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 
+     0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7 0 1 2 3 4 5 6 7
     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
     |     Type      |     Code      |          Checksum             |
     +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -32,6 +32,7 @@ class ICMPEchoMessage:
     |     Data ...
     +-+-+-+-+-
     """
+
     type: int
     code: int
     checksum: int
@@ -71,8 +72,4 @@ class ICMPEchoMessage:
         s: bytes = self.serialize()
         if len(s) % 2 == 1:
             s += b"\x00"
-        for i in map(lambda i: (s[i] << 8) | s[i + 1], range(0, len(s), 2)):
-            self.checksum += i
-            if self.checksum > 0xFFFF:
-                self.checksum -= 0xFFFF
-        self.checksum = 0x10000 + ~self.checksum
+        self.checksum = checksum(s)

@@ -1,7 +1,11 @@
 from dataclasses import dataclass
-from enum import Enum
 
-from util import bitfield, int_to_bytes
+import tcp_options
+
+from ip import IPv4Address, IPProtocol
+from tcp_options import TCPOption
+
+from util import bitfield, int_to_bytes, checksum
 
 
 @dataclass
@@ -17,7 +21,14 @@ class TCPFlags:
 
     def serialize(self) -> int:
         return bitfield(
-            self.ece, self.cwr, self.urg, self.ack, self.psh, self.rst, self.syn, self.fin
+            self.ece,
+            self.cwr,
+            self.urg,
+            self.ack,
+            self.psh,
+            self.rst,
+            self.syn,
+            self.fin,
         )
 
     def __or__(self, other):
@@ -36,95 +47,6 @@ class TCPFlags:
 
 
 TCP_FLAGS_SYN: TCPFlags = TCPFlags(False, False, False, False, False, False, True, False)
-
-
-class TCPOptionKind(Enum):
-    # Required
-    END_OF_OPTION_LIST = 0
-    NO_OPERATION = 1
-    MAXIMUM_SEGMENT_SIZE = 2
-    # Recommended
-    WINDOW_SCALE = 3
-    SACK_PERMITTED = 4
-    SACK_OPTION = 5
-    TIMESTAMPS = 8
-    # Experimental
-    RFC3692_EXPERIMENT_1 = 253 # Reserved in RFC 4727
-    RFC3692_EXPERIMENT_2 = 254 # Reserved in RFC 4727
-
-
-@dataclass
-class TCPOption:
-    option_kind: int
-    option_length: int | None
-    option_data: bytes
-
-    def __post_init__(self) -> None:
-        assert 0 <= self.option_kind < 2**8
-        if self.option_length is None:
-            assert len(self.option_data) == 0
-        else:
-            # The option-length counts the two octets of option-kind and option-length as well as the option-data octets.
-            assert (
-                0 <= self.option_length < 2**8 and len(self.option_data) == self.option_length - 2
-            )
-
-    def serialize(self) -> bytes:
-        return b"".join(
-            (
-                bytes([self.option_kind]),
-                (b"" if self.option_length is None else bytes([self.option_length])),
-                (b"" if self.option_data is None else self.option_data),
-            )
-        )
-
-class ConstructTCPOption:
-    # RFC 9293 - Required - Kind: 0
-    @staticmethod
-    def end_of_option_list() -> TCPOption:
-        return TCPOption(TCPOptionKind.END_OF_OPTION_LIST.value(), None, b"")
-
-    # RFC 9293 - Required - Kind: 1
-    @staticmethod
-    def no_operation() -> TCPOption:
-        return TCPOption(TCPOptionKind.NO_OPERATION.value(), None, b"")
-
-    # RFC 9293 - Required - Kind: 2
-    @staticmethod
-    def max_segment_size(max_seg_size: bytes) -> TCPOption:
-        assert len(max_seg_size) == 2
-        return TCPOption(TCPOptionKind.MAXIMUM_SEGMENT_SIZE.value(), 4, max_seg_size)
-
-    # RFC 7323 - Recommended - Kind: 3
-    @staticmethod
-    def window_scale(shift_cnt: bytes) -> TCPOption:
-        assert len(shift_cnt) == 1
-        return TCPOption(TCPOptionKind.WINDOW_SCALE.value(), 3, shift_cnt)
-
-    # RFC 2018 - Recommended - Kind: 4
-    @staticmethod
-    def sack_permitted() -> TCPOption:
-        return TCPOption(TCPOptionKind.SACK_PERMITTED.value(), 2, b"")
-
-    # RFC 2018 - Recommended - Kind: 5
-    @staticmethod
-    def sack_option(block_edges: bytes) -> TCPOption:
-        assert (len(block_edges) % 8 == 0) and (len(block_edges) <= 4)
-        # Maybe also assert that each left edge is less than or equal to each right edge?
-        return TCPOption(TCPOptionKind.SACK_OPTION.value(), len(block_edges) + 2, block_edges)
-
-    # RFC 7323 - Recommended - Kind: 8
-    @staticmethod
-    def timestamps(ts_value: bytes, ts_echo_reply: bytes) -> TCPOption:
-        assert (len(ts_value) == 4) and (len(ts_echo_reply) == 4)
-        return TCPOption(TCPOptionKind.TIMESTAMPS.value(), 10, b"".join(ts_value, ts_echo_reply))
-
-    # RFC 6994 - Experimental - Kind: 253, 254
-    @staticmethod
-    def experimental(experiment: bool, experimental_identifier: bytes, options:bytes) -> TCPOption:
-        assert len(experimental_identifier) in [2, 4]
-        option_kind = (TCPOptionKind.RFC3692_EXPERIMENT_2 if experiment else TCPOptionKind.RFC3692_EXPERIMENT_1).value()
-        return TCPOption(option_kind, len(experimental_identifier) + len(options) + 2, b"".join(experimental_identifier, options))
 
 
 @dataclass
@@ -195,3 +117,27 @@ class TCPPacket:
                 self.data,
             )
         )
+
+    def fix_checksum(self, destination_ip: IPv4Address, source_ip: IPv4Address) -> None:
+        self.checksum = 0
+        s: bytes = self.serialize()
+        self.checksum = checksum(
+            b"".join(
+                (
+                    source_ip.packed,
+                    destination_ip.packed,
+                    b"\x00",
+                    int_to_bytes(IPProtocol.TCP.value, 1),
+                    int_to_bytes(len(s), 2),
+                    s,
+                )
+            )
+        )
+
+    def fix_data_offset(self) -> None:
+        self.data_offset = (len(self.serialize()) - len(self.data)) // 4
+
+    def fix_padding(self) -> None:
+        serialized_options: bytes = b"".join(option.serialize() for option in self.options)
+        for _ in range(-len(serialized_options) % 4):
+            self.options.append(tcp_options.end_of_option_list())

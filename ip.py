@@ -3,7 +3,7 @@ from enum import Enum
 from ipaddress import IPv4Address
 from typing import Final
 
-from util import bitfield, int_to_bytes
+from util import bitfield, int_to_bytes, checksum
 
 
 class IPProtocol(Enum):
@@ -71,7 +71,11 @@ class IPToS:
             [
                 (self.precedence.value << 5)
                 | bitfield(
-                    self.delay, self.throughput, self.reliability, self.reserved_6, self.reserved_7
+                    self.delay,
+                    self.throughput,
+                    self.reliability,
+                    self.reserved_6,
+                    self.reserved_7,
                 )
             ]
         )
@@ -228,14 +232,7 @@ class IPv4Packet:
     def fix_checksum(self) -> None:
         self.header_checksum = 0
         header_bytes: bytes = self.serialize()[: self.ihl * 4]
-        for i in map(
-            lambda i: (header_bytes[i] << 8) | header_bytes[i + 1],
-            range(0, len(header_bytes), 2),
-        ):
-            self.header_checksum += i
-            if self.header_checksum > 0xFFFF:
-                self.header_checksum -= 0xFFFF
-        self.header_checksum = 0x10000 + ~self.header_checksum
+        self.header_checksum = checksum(header_bytes)
 
     def fix_total_length(self) -> None:
         self.total_length = self.ihl * 4 + len(self.payload)
