@@ -30,14 +30,14 @@ class MACAddress:
         return repr(self)
 
     def __repr__(self) -> str:
-        return ":".join(hex(octet)[2:].zfill(2) for octet in self.value).upper()
+        return 'MACAddress("' + ":".join(hex(octet)[2:].zfill(2) for octet in self.value).upper() + '")'
 
     def serialize(self) -> bytes:
         return bytes(self.value)
 
 
 class EtherType(Enum):
-    IP = 0x0800
+    IPV4 = 0x0800
     ARP = 0x0806
 
 
@@ -61,12 +61,12 @@ class EthernetFrame:
             )
         )
 
-
-def parse_ethernet_frame(frame: bytes) -> EthernetFrame:
-    assert len(frame) >= 14
-    return EthernetFrame(
-        MACAddress(frame[0:6]),
-        MACAddress(frame[6:12]),
-        bytes_to_int(frame[12:14]),
-        frame[14:],
-    )
+    @classmethod
+    def deserialize(cls, frame: bytes):
+        assert len(frame) >= 14
+        return cls(
+            MACAddress(frame[0:6]),
+            MACAddress(frame[6:12]),
+            bytes_to_int(frame[12:14]),
+            frame[14:],
+        )

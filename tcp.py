@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import tcp_options
 
-from ip import IPv4Address, IPProtocol
+from ipv4 import IPv4Address, IPProtocol
 from tcp_options import TCPOption
 
 from util import bitfield, int_to_bytes, checksum
@@ -118,7 +118,7 @@ class TCPPacket:
             )
         )
 
-    def fix_checksum(self, destination_ip: IPv4Address, source_ip: IPv4Address) -> None:
+    def fix_checksum(self, source_ip: IPv4Address, destination_ip: IPv4Address) -> None:
         self.checksum = 0
         s: bytes = self.serialize()
         self.checksum = checksum(
