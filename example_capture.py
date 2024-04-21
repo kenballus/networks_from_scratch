@@ -18,13 +18,16 @@ def capture(interface: str, timeout: float | None) -> None:
             break
         frame: EthernetFrame = EthernetFrame.deserialize(data)
         pkttype: int = address[2]
+        direction_symbol: str
         if pkttype == 0:
-            print("↑", end=" ")
+            direction_symbol: str = "↑"
         elif pkttype == 1:
-            # print("*", end=" ")
+            direction_symbol = "*"
             continue
         elif pkttype == 4:
-            print("↓", end=" ")
+            direction_symbol = "↓"
+        else:
+            direction_symbol = "?"
 
         ip_packet: IPv4Packet | None = None
         if frame.ethertype == EtherType.IPV4.value:
@@ -43,7 +46,7 @@ def capture(interface: str, timeout: float | None) -> None:
         except ValueError:
             ethertype_name = "Unknown"
 
-        print(f"EthernetFrame(\n    {frame.destination_address},\n    {frame.source_address},\n    {frame.ethertype},  # {ethertype_name}\n    {frame_data}\n)")
+        print(f"EthernetFrame(  # {direction_symbol}\n    {frame.destination_address},\n    {frame.source_address},\n    {frame.ethertype},  # {ethertype_name}\n    {frame_data}\n)")
 
 
 
