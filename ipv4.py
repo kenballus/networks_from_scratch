@@ -6,7 +6,7 @@ from typing import Final
 from util import bitfield, int_to_bytes, bytes_to_int, checksum
 
 
-class IPProtocol(Enum):
+class IPv4Protocol(Enum):
     ICMP = 1
     IGMP = 2
     TCP = 6
@@ -14,7 +14,7 @@ class IPProtocol(Enum):
 
 
 @dataclass
-class IPFlags:
+class IPv4Flags:
     reserved: bool
     df: bool
     mf: bool
@@ -23,13 +23,13 @@ class IPFlags:
         return bitfield(self.reserved, self.df, self.mf)
 
 
+IPV4FLAGS_NULL: Final[IPv4Flags] = IPv4Flags(False, False, False)
+IPV4FLAGS_RESERVED: Final[IPv4Flags] = IPv4Flags(True, False, False)
+IPV4FLAGS_DF: Final[IPv4Flags] = IPv4Flags(False, True, False)
+IPV4FLAGS_MF: Final[IPv4Flags] = IPv4Flags(False, False, True)
 
-IPFLAGS_NULL: Final[IPFlags] = IPFlags(False, False, False)
-IPFLAGS_RESERVED: Final[IPFlags] = IPFlags(True, False, False)
-IPFLAGS_DF: Final[IPFlags] = IPFlags(False, True, False)
-IPFLAGS_MF: Final[IPFlags] = IPFlags(False, False, True)
 
-class IPToSPrecedence(Enum):
+class IPv4ToSPrecedence(Enum):
     """
     111 - Network Control
     110 - Internetwork Control
@@ -52,7 +52,7 @@ class IPToSPrecedence(Enum):
 
 
 @dataclass
-class IPToS:
+class IPv4ToS:
     """
        0     1     2     3     4     5     6     7
     +-----+-----+-----+-----+-----+-----+-----+-----+
@@ -98,10 +98,10 @@ class IPToS:
         )
 
 
-IPTOS_NULL: Final[IPToS] = IPToS(IPToSPrecedence.ROUTINE.value, False, False, False)
+IPV4TOS_NULL: Final[IPv4ToS] = IPv4ToS(IPv4ToSPrecedence.ROUTINE.value, False, False, False)
 
 
-class IPOptionClass(Enum):
+class IPv4OptionClass(Enum):
     """
     0 = control
     1 = reserved for future use
@@ -116,7 +116,7 @@ class IPOptionClass(Enum):
 
 
 @dataclass
-class IPOptionType:
+class IPv4OptionType:
     """
     1 bit   copied flag,
     2 bits  option class,
@@ -133,10 +133,14 @@ class IPOptionType:
     def serialize(self) -> bytes:
         return bytes((self.copied_flag << 7) | (self.option_class << 6) | self.option_number)
 
+    @classmethod
+    def deserialize(cls, data: int):
+        return cls(bool(data >> 7), (data >> 5) & 0b11, data & 0b11111)
+
 
 @dataclass
-class IPOption:
-    option_type: IPOptionType
+class IPv4Option:
+    option_type: IPv4OptionType
     option_length: int | None
     option_data: bytes
 
@@ -145,9 +149,7 @@ class IPOption:
             assert len(self.option_data) == 0
         else:
             # The option-length counts the two octets of option-kind and option-length as well as the option-data octets.
-            assert (
-                0 <= self.option_length < 2**8 and len(self.option_data) == self.option_length - 2
-            )
+            assert 0 <= self.option_length < 2**8
 
     def serialize(self) -> bytes:
         result: bytes = self.option_type.serialize()
@@ -157,8 +159,8 @@ class IPOption:
         return result
 
 
-END_OF_OPTION_LIST: Final[IPOption] = IPOption(
-    IPOptionType(False, IPOptionClass.CONTROL.value, 0),
+END_OF_OPTION_LIST: Final[IPv4Option] = IPv4Option(
+    IPv4OptionType(False, IPv4OptionClass.CONTROL.value, 0),
     None,
     b"",
 )
@@ -185,17 +187,17 @@ class IPv4Packet:
 
     version: int
     ihl: int
-    type_of_service: IPToS
+    type_of_service: IPv4ToS
     total_length: int
     identification: int
-    flags: IPFlags
+    flags: IPv4Flags
     fragment_offset: int
     time_to_live: int
     protocol: int
     header_checksum: int
     source_address: IPv4Address
     destination_address: IPv4Address
-    options: list[IPOption]
+    options: list[IPv4Option]
     payload: bytes = b""
 
     def ihl_is_in_range(self) -> bool:
@@ -240,7 +242,7 @@ class IPv4Packet:
                 int_to_bytes(self.header_checksum, 2),
                 self.source_address.packed,
                 self.destination_address.packed,
-                *map(IPOption.serialize, self.options),
+                *map(IPv4Option.serialize, self.options),
                 self.payload,
             ]
         )
@@ -249,22 +251,39 @@ class IPv4Packet:
     @classmethod
     def deserialize(cls, data: bytes):
         assert len(data) >= 20
-        ihl: int = data[0] & 0x0f
+        ihl: int = data[0] & 0x0F
         beginning_of_data: int = ihl * 4
+        options: list = []
+        curr: int = 20
+        while curr < beginning_of_data:
+            option_type: IPv4OptionType = IPv4OptionType.deserialize(data[curr])
+            curr += 1
+            if curr == beginning_of_data or (
+                option_type.option_class,
+                option_type.option_number,
+            ) in ((0, 0), (0, 1)):
+                options.append(IPv4Option(option_type, None, b""))
+            else:
+                option_length = data[curr]
+                curr += 1
+                option_data = data[curr : curr + max(0, option_length - 2)]
+                curr += len(option_data)
+                options.append(IPv4Option(option_type, option_length, option_data))
+
         return cls(
             data[0] >> 4,
             ihl,
-            IPToS.deserialize(data[1]),
+            IPv4ToS.deserialize(data[1]),
             bytes_to_int(data[2:4]),
             bytes_to_int(data[4:6]),
-            IPFlags(bool((data[6] >> 7) & 1), bool((data[6] >> 6) & 1), bool((data[6] >> 5) & 1)),
+            IPv4Flags(bool((data[6] >> 7) & 1), bool((data[6] >> 6) & 1), bool((data[6] >> 5) & 1)),
             bytes_to_int(bytes([data[6] & 0b00011111, data[7]])),
             data[8],
             data[9],
             bytes_to_int(data[10:12]),
             IPv4Address(data[12:16]),
             IPv4Address(data[16:20]),
-            [], # TODO: This.
+            options,
             data[beginning_of_data:],
         )
 
@@ -278,11 +297,11 @@ class IPv4Packet:
         assert self.total_length_is_in_range()
 
     def fix_ihl(self) -> None:
-        self.ihl = 5 + (len(b"".join(map(IPOption.serialize, self.options))) // 4)
+        self.ihl = 5 + (len(b"".join(map(IPv4Option.serialize, self.options))) // 4)
         assert self.ihl_is_in_range()
 
     def fix_padding(self) -> None:
-        for _ in range((0 - len(b"".join(map(IPOption.serialize, self.options)))) % 4):
+        for _ in range((0 - len(b"".join(map(IPv4Option.serialize, self.options)))) % 4):
             self.options.append(END_OF_OPTION_LIST)
 
     def fix(self) -> None:

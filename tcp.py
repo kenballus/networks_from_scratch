@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import tcp_options
 
-from ipv4 import IPv4Address, IPProtocol
+from ipv4 import IPv4Address, IPv4Protocol
 from tcp_options import TCPOption
 
 from util import bitfield, int_to_bytes, checksum
@@ -127,7 +127,7 @@ class TCPPacket:
                     source_ip.packed,
                     destination_ip.packed,
                     b"\x00",
-                    int_to_bytes(IPProtocol.TCP.value, 1),
+                    int_to_bytes(IPv4Protocol.TCP.value, 1),
                     int_to_bytes(len(s), 2),
                     s,
                 )

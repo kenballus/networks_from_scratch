@@ -2,7 +2,7 @@ import random
 import sys
 import sockets
 
-from ipv4 import IPv4Packet, IPFlags, IPv4Address, IPProtocol, IPTOS_NULL
+from ipv4 import IPv4Packet, IPv4Flags, IPv4Address, IPv4Protocol, IPV4TOS_NULL
 from ethernet import MACAddress, EtherType, EthernetFrame
 from tcp import TCPPacket, TCP_FLAGS_SYN
 
@@ -36,13 +36,13 @@ def syn(
     ip_packet: IPv4Packet = IPv4Packet(
         4,  # Version
         0,  # IHL
-        IPTOS_NULL,  # ToS
+        IPV4TOS_NULL,  # ToS
         0,  # Total length
         0,  # ID
-        IPFlags(False, True, False),
+        IPv4Flags(False, True, False),
         0,  # Fragment
         64,  # TTL
-        IPProtocol.TCP.value,  # Protocol
+        IPv4Protocol.TCP.value,  # Protocol
         0,  # Checksum
         source_ip,
         destination_ip,

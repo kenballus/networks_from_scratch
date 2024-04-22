@@ -2,7 +2,10 @@ import sys
 import sockets
 
 from ethernet import EthernetFrame, EtherType
-from ipv4 import IPv4Packet
+from ipv4 import IPv4Packet, IPv4Protocol
+
+
+INDENT: str = "    "
 
 
 def capture(interface: str, timeout: float | None) -> None:
@@ -20,10 +23,9 @@ def capture(interface: str, timeout: float | None) -> None:
         pkttype: int = address[2]
         direction_symbol: str
         if pkttype == 0:
-            direction_symbol: str = "↑"
+            direction_symbol = "↑"
         elif pkttype == 1:
             direction_symbol = "*"
-            continue
         elif pkttype == 4:
             direction_symbol = "↓"
         else:
@@ -38,7 +40,33 @@ def capture(interface: str, timeout: float | None) -> None:
 
         frame_data: str = repr(frame.data)
         if ip_packet is not None:
-            frame_data = repr(ip_packet) + ".serialize()"
+            ip_protocol_name: str
+            try:
+                ip_protocol_name = IPv4Protocol(ip_packet.protocol).name
+            except ValueError:
+                ip_protocol_name = "Unknown"
+            frame_data = (
+                f"{INDENT * 2}".join(
+                    (
+                        "IPv4Packet(\n",
+                        f"version={repr(ip_packet.version)},\n",
+                        f"ihl={repr(ip_packet.ihl)},\n",
+                        f"type_of_service={repr(ip_packet.type_of_service)},\n",
+                        f"total_length={repr(ip_packet.total_length)},\n",
+                        f"identification={repr(ip_packet.identification)},\n",
+                        f"flags={repr(ip_packet.flags)},\n",
+                        f"fragment_offset={repr(ip_packet.fragment_offset)},\n",
+                        f"time_to_live={repr(ip_packet.time_to_live)},\n",
+                        f"protocol={repr(ip_packet.protocol)},  # {ip_protocol_name}\n",
+                        f"header_checksum={repr(ip_packet.header_checksum)},\n",
+                        f"source_address={repr(ip_packet.source_address)},\n",
+                        f"destination_address={repr(ip_packet.destination_address)},\n",
+                        f"options={repr(ip_packet.options)},\n",
+                        f"payload={repr(ip_packet.payload)},\n",
+                    )
+                )
+                + f"{INDENT}).serialize(),"
+            )
 
         ethertype_name: str
         try:
@@ -46,8 +74,18 @@ def capture(interface: str, timeout: float | None) -> None:
         except ValueError:
             ethertype_name = "Unknown"
 
-        print(f"EthernetFrame(  # {direction_symbol}\n    {frame.destination_address},\n    {frame.source_address},\n    {frame.ethertype},  # {ethertype_name}\n    {frame_data}\n)")
-
+        print(
+            f"{INDENT}".join(
+                (
+                    f"EthernetFrame(  # {direction_symbol}\n",
+                    f"destination_address={frame.destination_address},\n",
+                    f"source_address={frame.source_address},\n",
+                    f"ethertype={frame.ethertype},  # {ethertype_name}\n",
+                    f"data={frame_data}\n",
+                )
+            )
+            + ")"
+        )
 
 
 if __name__ == "__main__":
