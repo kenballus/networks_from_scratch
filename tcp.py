@@ -5,7 +5,7 @@ import tcp_options
 from ipv4 import IPv4Address, IPv4Protocol
 from tcp_options import TCPOption
 
-from util import bitfield, int_to_bytes, checksum
+from util import bitfield, checksum
 
 
 @dataclass
@@ -105,14 +105,14 @@ class TCPPacket:
     def serialize(self) -> bytes:
         return b"".join(
             (
-                int_to_bytes(self.source_port, 2),
-                int_to_bytes(self.destination_port, 2),
-                int_to_bytes(self.sequence_number, 4),
-                int_to_bytes(self.acknowledgment_number, 4),
+                self.source_port.to_bytes(2),
+                self.destination_port.to_bytes(2),
+                self.sequence_number.to_bytes(4),
+                self.acknowledgment_number.to_bytes(4),
                 bytes([(self.data_offset << 4) | self.reserved, self.flags.serialize()]),
-                int_to_bytes(self.window, 2),
-                int_to_bytes(self.checksum, 2),
-                int_to_bytes(self.urgent_pointer, 2),
+                self.window.to_bytes(2),
+                self.checksum.to_bytes(2),
+                self.urgent_pointer.to_bytes(2),
                 *map(TCPOption.serialize, self.options),
                 self.data,
             )
@@ -127,8 +127,8 @@ class TCPPacket:
                     source_ip.packed,
                     destination_ip.packed,
                     b"\x00",
-                    int_to_bytes(IPv4Protocol.TCP.value, 1),
-                    int_to_bytes(len(s), 2),
+                    IPv4Protocol.TCP.value.to_bytes(1),
+                    len(s).to_bytes(2),
                     s,
                 )
             )

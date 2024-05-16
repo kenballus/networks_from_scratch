@@ -3,7 +3,7 @@ import re
 from dataclasses import dataclass
 from enum import Enum
 
-from util import int_to_bytes, bytes_to_int
+from util import bytes_to_int
 
 
 class MACAddress:
@@ -60,7 +60,7 @@ class EthernetFrame:
             (
                 self.destination_address.serialize(),
                 self.source_address.serialize(),
-                int_to_bytes(self.ethertype, 2),
+                self.ethertype.to_bytes(2),
                 self.data,
             )
         )

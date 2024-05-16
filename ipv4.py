@@ -3,7 +3,7 @@ from enum import Enum
 from ipaddress import IPv4Address
 from typing import Final
 
-from util import bitfield, int_to_bytes, bytes_to_int, checksum
+from util import bitfield, bytes_to_int, checksum
 
 
 class IPv4Protocol(Enum):
@@ -225,8 +225,8 @@ class IPv4Packet:
             [
                 bytes([(self.version << 4) | self.ihl]),
                 self.type_of_service.serialize(),
-                int_to_bytes(self.total_length, 2),
-                int_to_bytes(self.identification, 2),
+                self.total_length.to_bytes(2),
+                self.identification.to_bytes(2),
                 bytes(
                     [
                         (self.flags.serialize() << 5) | (self.fragment_offset >> 9),
@@ -239,7 +239,7 @@ class IPv4Packet:
                         self.protocol,
                     ]
                 ),
-                int_to_bytes(self.header_checksum, 2),
+                self.header_checksum.to_bytes(2),
                 self.source_address.packed,
                 self.destination_address.packed,
                 *map(IPv4Option.serialize, self.options),

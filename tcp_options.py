@@ -1,8 +1,6 @@
 from enum import Enum
 from dataclasses import dataclass
 
-from util import int_to_bytes
-
 
 class TCPOptionKind(Enum):
     # Required
@@ -55,14 +53,14 @@ def no_operation() -> TCPOption:
 def max_segment_size(max_seg_size: int) -> TCPOption:
     """RFC 9293 - Required - Kind: 2"""
     assert 0 <= max_seg_size < 2**16
-    body: bytes = int_to_bytes(max_seg_size, 2)
+    body: bytes = max_seg_size.to_bytes(2)
     return TCPOption(TCPOptionKind.MAXIMUM_SEGMENT_SIZE.value, 2 + len(body), body)
 
 
 def window_scale(shift_cnt: int) -> TCPOption:
     """RFC 7323 - Recommended - Kind: 3"""
     assert 0 <= shift_cnt < 2**8
-    body: bytes = int_to_bytes(shift_cnt, 1)
+    body: bytes = shift_cnt.to_bytes(1)
     return TCPOption(TCPOptionKind.WINDOW_SCALE.value, 2 + len(body), body)
 
 
@@ -76,12 +74,12 @@ def sack_option(block_edges: list[int]) -> TCPOption:
     assert all(
         0 <= edge < 2**32 for edge in block_edges
     )  # We do not enforce that edges be paired, or anything about edge values.
-    body: bytes = b"".join(int_to_bytes(e, 4) for e in block_edges)
+    body: bytes = b"".join(e.to_bytes(4) for e in block_edges)
     return TCPOption(TCPOptionKind.SACK_OPTION.value, 2 + len(body), body)
 
 
 def timestamps(ts_value: int, ts_echo_reply: int) -> TCPOption:
     """RFC 7323 - Recommended - Kind: 8"""
     assert 0 <= ts_value < 2**32 and 0 <= ts_echo_reply < 2**32
-    body: bytes = int_to_bytes(ts_value, 4) + int_to_bytes(ts_echo_reply, 4)
+    body: bytes = ts_value.to_bytes(4) + ts_echo_reply.to_bytes(4)
     return TCPOption(TCPOptionKind.TIMESTAMPS.value, 2 + len(body), body)

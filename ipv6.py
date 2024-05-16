@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from ipaddress import IPv6Address
-from util import int_to_bytes, bytes_to_int
+from util import bytes_to_int
 
 
 @dataclass
@@ -65,10 +65,10 @@ class IPv6Packet:
                         ((self.traffic_class & 0xF) << 4) | self.flow_label >> 16,
                     ]
                 ),
-                int_to_bytes(self.flow_label & 0xFFFF, 2),
-                int_to_bytes(self.payload_length, 2),
-                int_to_bytes(self.next_header, 1),
-                int_to_bytes(self.hop_limit, 1),
+                (self.flow_label & 0xFFFF).to_bytes(2),
+                self.payload_length.to_bytes(2),
+                self.next_header.to_bytes(1),
+                self.hop_limit.to_bytes(1),
                 self.source_address.packed,
                 self.destination_address.packed,
                 self.payload,

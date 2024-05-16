@@ -65,6 +65,7 @@ if __name__ == "__main__":
             f"Usage: python3 {sys.argv[0]} <interface> <source_mac> <gateway_mac> <source_ip> <destination_ip>",
             file=sys.stderr,
         )
+        sys.exit(1)
     ping(
         sys.argv[1],
         MACAddress(sys.argv[2]),
