@@ -10,8 +10,8 @@ from util import bitfield, checksum, bytes_to_int
 
 @dataclass
 class TCPFlags:
-    ece: bool
     cwr: bool
+    ece: bool
     urg: bool
     ack: bool
     psh: bool
@@ -21,8 +21,8 @@ class TCPFlags:
 
     def serialize(self) -> int:
         return bitfield(
-            self.ece,
             self.cwr,
+            self.ece,
             self.urg,
             self.ack,
             self.psh,
@@ -35,8 +35,8 @@ class TCPFlags:
         if not isinstance(other, TCPFlags):
             return NotImplemented
         return TCPFlags(
-            self.ece | other.ece,
             self.cwr | other.cwr,
+            self.ece | other.ece,
             self.urg | other.urg,
             self.ack | other.ack,
             self.psh | other.psh,
@@ -128,7 +128,7 @@ class TCPPacket:
         acknowledgment_number: int = bytes_to_int(data[8:12])
         data_offset: int = data[12] >> 4
         reserved: int = data[12] & 0b1111
-        flags: TCPFlags = TCPFlags(*map(bool, ((data[13] >> i) & 0b1 for i in range(8))))
+        flags: TCPFlags = TCPFlags(*map(bool, ((data[13] >> i) & 0b1 for i in reversed(range(8)))))
         window: int = bytes_to_int(data[14:16])
         checksum: int = bytes_to_int(data[16:18])
         urgent_pointer: int = bytes_to_int(data[18:20])
