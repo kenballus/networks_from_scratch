@@ -30,11 +30,7 @@ class MACAddress:
         return repr(self)
 
     def __repr__(self) -> str:
-        return (
-            'MACAddress("'
-            + ":".join(hex(octet)[2:].zfill(2) for octet in self.value).upper()
-            + '")'
-        )
+        return 'MACAddress("' + ":".join(hex(octet)[2:].zfill(2) for octet in self.value).upper() + '")'
 
     def serialize(self) -> bytes:
         return bytes(self.value)

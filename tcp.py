@@ -5,7 +5,7 @@ import tcp_options
 from ipv4 import IPv4Address, IPv4Protocol
 from tcp_options import TCPOption
 
-from util import bitfield, checksum
+from util import bitfield, checksum, bytes_to_int
 
 
 @dataclass
@@ -116,6 +116,49 @@ class TCPPacket:
                 *map(TCPOption.serialize, self.options),
                 self.data,
             )
+        )
+
+    @classmethod
+    def deserialize(cls, data: bytes):
+        assert len(data) >= 20
+
+        source_port: int = bytes_to_int(data[:2])
+        destination_port: int = bytes_to_int(data[2:4])
+        sequence_number: int = bytes_to_int(data[4:8])
+        acknowledgment_number: int = bytes_to_int(data[8:12])
+        data_offset: int = data[12] >> 4
+        reserved: int = data[12] & 0b1111
+        flags: TCPFlags = TCPFlags(*map(bool, ((data[13] >> i) & 0b1 for i in range(8))))
+        window: int = bytes_to_int(data[14:16])
+        checksum: int = bytes_to_int(data[16:18])
+        urgent_pointer: int = bytes_to_int(data[18:20])
+
+        option_data: bytes = data[20 : data_offset * 4]
+
+        options: list[TCPOption] = []
+        while len(option_data) > 0:
+            option: TCPOption = TCPOption.deserialize(option_data)
+            if option.option_length is None:
+                option_data = option_data[1:]
+            else:
+                option_data = option_data[option.option_length :]
+            options.append(option)
+
+        payload: bytes = data[data_offset * 4 :]
+
+        return cls(
+            source_port,
+            destination_port,
+            sequence_number,
+            acknowledgment_number,
+            data_offset,
+            reserved,
+            flags,
+            window,
+            checksum,
+            urgent_pointer,
+            options,
+            payload,
         )
 
     def fix_checksum(self, source_ip: IPv4Address, destination_ip: IPv4Address) -> None:

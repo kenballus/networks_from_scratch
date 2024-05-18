@@ -1,5 +1,6 @@
 from enum import Enum
 from dataclasses import dataclass
+from typing import Self
 
 
 class TCPOptionKind(Enum):
@@ -26,16 +27,29 @@ class TCPOption:
             assert len(self.option_data) == 0
         else:
             # The option-length counts the two octets of option-kind and option-length as well as the option-data octets.
-            assert (
-                0 <= self.option_length < 2**8 and len(self.option_data) == self.option_length - 2
-            )
+            assert 0 <= self.option_length < 2**8 and len(self.option_data) == self.option_length - 2
+
+    @classmethod
+    def deserialize(cls, data: bytes) -> Self:
+        assert len(data) >= 1
+        kind: int = data[0]
+        length: int | None
+        payload: bytes
+        if kind in (TCPOptionKind.END_OF_OPTION_LIST.value, TCPOptionKind.NO_OPERATION.value):
+            length = None
+            payload = b""
+        else:
+            assert len(data) >= 2
+            length = data[1]
+            payload = data[2 : data[1]]
+        return cls(kind, length, payload)
 
     def serialize(self) -> bytes:
         return b"".join(
             (
                 bytes([self.option_kind]),
                 (b"" if self.option_length is None else bytes([self.option_length])),
-                (b"" if self.option_data is None else self.option_data),
+                self.option_data,
             )
         )
 

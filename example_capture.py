@@ -10,22 +10,25 @@ INDENT: str = "    "
 
 
 def prettify_tcp_packet(packet: TCPPacket, indent_level: int) -> str:
-    return f"{INDENT * (indent_level + 1)}".join(
-        (
-            "TCPPacket(\n",
-            f"source_port={repr(packet.source_port)}",
-            f"destination_port={repr(packet.destination_port)}",
-            f"sequence_number={repr(packet.sequence_number)}",
-            f"acknowledgment_number={repr(packet.acknowledgment_number)}",
-            f"data_offset={repr(packet.data_offset)}",
-            f"reserved={repr(packet.reserved)}",
-            f"flags={repr(packet.flags)}",
-            f"window={repr(packet.window)}",
-            f"checksum={repr(packet.checksum)}",
-            f"urgent_pointer={repr(packet.urgent_pointer)}",
-            f"options={packet.options}",
-            f"data={repr(packet.data)}",
+    return (
+        f"{INDENT * (indent_level + 1)}".join(
+            (
+                "TCPPacket(\n",
+                f"source_port={repr(packet.source_port)},\n",
+                f"destination_port={repr(packet.destination_port)},\n",
+                f"sequence_number={repr(packet.sequence_number)},\n",
+                f"acknowledgment_number={repr(packet.acknowledgment_number)},\n",
+                f"data_offset={repr(packet.data_offset)},\n",
+                f"reserved={repr(packet.reserved)},\n",
+                f"flags={repr(packet.flags)},\n",
+                f"window={repr(packet.window)},\n",
+                f"checksum={repr(packet.checksum)},\n",
+                f"urgent_pointer={repr(packet.urgent_pointer)},\n",
+                f"options={packet.options},\n",
+                f"data={repr(packet.data)},\n",
+            )
         )
+        + f"{INDENT * indent_level}).serialize()"
     )
 
 
@@ -37,7 +40,7 @@ def prettify_ipv4_packet(packet: IPv4Packet, indent_level: int) -> str:
         ip_protocol_name = "Unknown"
 
     pretty_payload: str = repr(packet.payload)
-    if packet.protocol == IPv4Protocol.TCP:
+    if packet.protocol == IPv4Protocol.TCP.value:
         try:
             pretty_payload = prettify_tcp_packet(TCPPacket.deserialize(packet.payload), indent_level + 1)
         except AssertionError:
@@ -63,7 +66,7 @@ def prettify_ipv4_packet(packet: IPv4Packet, indent_level: int) -> str:
                 f"payload={pretty_payload},\n",
             )
         )
-        + f"{INDENT * indent_level}).serialize(),"
+        + f"{INDENT * indent_level}).serialize()"
     )
 
 
@@ -99,7 +102,7 @@ def prettify_frame(frame: EthernetFrame, indent_level: int, pkttype: int) -> str
                 f"destination_address={frame.destination_address},\n",
                 f"source_address={frame.source_address},\n",
                 f"ethertype={frame.ethertype},  # {ethertype_name}\n",
-                f"data={pretty_frame_data}\n",
+                f"data={pretty_frame_data},\n",
             )
         )
         + f"{INDENT * (indent_level)})"

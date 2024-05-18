@@ -88,7 +88,9 @@ class ICMPEchoMessage(ICMPMessage):
             data[8:],
         )
 
+
 ICMPEchoReplyMessage = ICMPEchoMessage
+
 
 @dataclass
 class ICMPTimestampMessage:
