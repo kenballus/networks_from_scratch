@@ -16,3 +16,9 @@ def checksum(data: bytes) -> int:
             result -= 0xFFFF
     result = 0x10000 + ~result
     return result
+
+
+if __name__ == "__main__":
+    import sys
+
+    print(checksum(sys.argv[1].encode("ascii")))

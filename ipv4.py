@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from enum import Enum
 from ipaddress import IPv4Address
-from typing import Final
+from typing import Final, Self
 
 from util import bitfield, bytes_to_int, checksum
 
@@ -87,7 +87,7 @@ class IPv4ToS:
         )
 
     @classmethod
-    def deserialize(cls, data: int):
+    def deserialize(cls, data: int) -> Self:
         return cls(
             data >> 5,
             bool(data >> 4),
@@ -134,7 +134,7 @@ class IPv4OptionType:
         return bytes((self.copied_flag << 7) | (self.option_class << 6) | self.option_number)
 
     @classmethod
-    def deserialize(cls, data: int):
+    def deserialize(cls, data: int) -> Self:
         return cls(bool(data >> 7), (data >> 5) & 0b11, data & 0b11111)
 
 
@@ -249,7 +249,7 @@ class IPv4Packet:
         return result
 
     @classmethod
-    def deserialize(cls, data: bytes):
+    def deserialize(cls, data: bytes) -> Self:
         assert len(data) >= 20
         ihl: int = data[0] & 0x0F
         beginning_of_data: int = ihl * 4
@@ -286,6 +286,29 @@ class IPv4Packet:
             options,
             data[beginning_of_data:],
         )
+
+    @classmethod
+    def default(
+        cls, source_ip: IPv4Address, destination_ip: IPv4Address, proto: IPv4Protocol, data: bytes
+    ) -> Self:
+        result: Self = cls(
+            4,
+            0,
+            IPV4TOS_NULL,
+            0,
+            0,
+            IPv4Flags(False, True, False),
+            0,
+            64,
+            proto.value,
+            0,
+            source_ip,
+            destination_ip,
+            [],
+            data,
+        )
+        result.fix()
+        return result
 
     def fix_checksum(self) -> None:
         self.header_checksum = 0

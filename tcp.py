@@ -47,6 +47,8 @@ class TCPFlags:
 
 
 TCP_FLAGS_SYN: TCPFlags = TCPFlags(False, False, False, False, False, False, True, False)
+TCP_FLAGS_ACK: TCPFlags = TCPFlags(False, False, False, True, False, False, False, False)
+TCP_FLAGS_PSH: TCPFlags = TCPFlags(False, False, False, False, True, False, False, False)
 
 
 @dataclass
