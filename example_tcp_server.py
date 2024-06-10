@@ -14,6 +14,7 @@ def get_ipv4_packets(sock: socket.socket) -> Iterable[IPv4Packet | None]:
     Returns an iterable of the IPv4Packets incoming on the socket.
     None will be inserted in the iterable if a socket timeout occurs.
     """
+
     def result():
         while True:
             try:
@@ -25,11 +26,14 @@ def get_ipv4_packets(sock: socket.socket) -> Iterable[IPv4Packet | None]:
     return result()
 
 
-def get_tcp_packets(ipv4_packets: Iterable[IPv4Packet | None]) -> Iterable[tuple[TCPPacket, IPv4Address] | None]:
+def get_tcp_packets(
+    ipv4_packets: Iterable[IPv4Packet | None],
+) -> Iterable[tuple[TCPPacket, IPv4Address] | None]:
     """
     Returns an iterable of the TCP packets from the ipv4 packets.
     If any of the ipv4 packets are None, they are left as-is.
     """
+
     def result():
         for ipv4_packet in ipv4_packets:
             if ipv4_packet is None:
@@ -41,12 +45,6 @@ def get_tcp_packets(ipv4_packets: Iterable[IPv4Packet | None]) -> Iterable[tuple
                     pass
 
     return result()
-
-
-class TCPServerState(Enum):
-    LISTENING = 0
-    SYN_RECEIVED = 1
-    ESTABLISHED = 2
 
 
 WINDOW_SIZE: int = 33280
@@ -98,8 +96,11 @@ def tcp_roundtrip(
         sock.settimeout(TCP_TIMEOUT)
         incoming_pkt: TCPPacket | None = next(
             filter(
-                lambda p: p is None or (
-                    p.acknowledgment_number == (outgoing_pkt.sequence_number + len(outgoing_pkt.data) + outgoing_pkt.flags.syn) % 2**32
+                lambda p: p is None
+                or (
+                    p.acknowledgment_number
+                    == (outgoing_pkt.sequence_number + len(outgoing_pkt.data) + outgoing_pkt.flags.syn)
+                    % 2**32
                 )
                 or p.flags.rst,
                 incoming_packets_on_connection,
@@ -156,7 +157,9 @@ def handle_connection(source_address: IPv4Address, source_port: int, data_to_sen
     last_ack: TCPPacket = ack
     chunk_size: int = 1024
     num_chunks: int = len(data_to_send) // chunk_size
-    for i, chunk in enumerate(data_to_send[i:i + chunk_size] for i in range(0, len(data_to_send), chunk_size)):
+    for i, chunk in enumerate(
+        data_to_send[i : i + chunk_size] for i in range(0, len(data_to_send), chunk_size)
+    ):
         response: TCPPacket = TCPPacket(
             source_port=source_port,
             destination_port=ack.source_port,
@@ -192,7 +195,7 @@ def handle_connection(source_address: IPv4Address, source_port: int, data_to_sen
 
 def main() -> None:
     if len(sys.argv) != 4:
-        print("Usage: python3 {sys.argv[0]} <bind_address> <port> <file>", file=sys.stderr)
+        print(f"Usage: python3 {sys.argv[0]} <bind_address> <port> <file>", file=sys.stderr)
         print("    bind_address: The source address of outgoing IP packets.", file=sys.stderr)
         print("    port: The source port of outgoing TCP packets.", file=sys.stderr)
         print("    file: The file to serve.", file=sys.stderr)
